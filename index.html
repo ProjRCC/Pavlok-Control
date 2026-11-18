@@ -1,0 +1,460 @@
+<!doctype html>
+<!--
+V1.9 HTTPS/PWA package; alarm content and timer protocol retained from hardware-tested V1.8.
+Pavlok Control: unofficial interoperability prototype. Portions of the
+reverse-engineered BLE protocol and its encoding implementation derive from:
+  LibreShock (https://github.com/hairyfred/LibreShock)
+MIT License. Copyright (c) 2026 hairyfred.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d1421"><title>Pavlok Control</title>
+<meta name="description" content="Pavlok Shock Clock 3 controls: connected alarm status, schedules and watch-based timers.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<style>
+:root{color-scheme:dark;--bg:#0b111b;--card:#172334;--ink:#eef5ff;--dim:#a5b6ca;--line:#33465c;--accent:#78a9ff;--good:#40d5a1;--warn:#f4c16e;--bad:#ff8e96;font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at 15% -10%,#263e5b80,transparent 52%),var(--bg);color:var(--ink);line-height:1.42}main{max-width:820px;padding:18px 16px 85px;margin:auto}h1,h2,h3,p{margin:0}h1{font-size:29px;letter-spacing:-.045em}h2{font-size:18px;letter-spacing:-.025em}h3{font-size:14px}button,input,select{font:inherit}button{background:#2a3d58;border:1px solid #4d6584;color:#f4f8ff;border-radius:12px;padding:11px 14px;cursor:pointer;font-weight:700;touch-action:manipulation}button:disabled{opacity:.4;cursor:not-allowed}button.primary{background:#7daaff;color:#111b2b;border-color:#7daaff}button.ghost{background:transparent;border-color:#455a73}button.danger{color:#ffcad0;border-color:#80525e;background:#34232e}button.small{font-size:12px;padding:8px 11px}button.selected{background:#3d6598;border-color:#8fbeff}button.full{width:100%}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #9dd0ff;outline-offset:2px}
+header{display:flex;justify-content:space-between;gap:14px;align-items:center;margin:6px 0 16px}.eyebrow{text-transform:uppercase;letter-spacing:.17em;font-size:10px;color:#a8b9d3;font-weight:800;margin-bottom:5px}.version{font-size:11px;color:#b2c5e2;border:1px solid #466079;padding:7px 10px;border-radius:30px;white-space:nowrap}.intro{color:var(--dim);font-size:13px;margin-top:5px}.tabs{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;background:#0b111be9;backdrop-filter:blur(10px);padding:11px 0;border-bottom:1px solid #35455b}.tabs button{background:#202d40;border-color:#2c415c;padding:12px 3px;font-size:14px}.tabs button.active{color:#0c1727;background:#8cb4fa;border-color:#8cb4fa}
+.page{display:none}.page.active{display:block}.card{background:var(--card);border:1px solid var(--line);border-radius:19px;padding:19px;margin-top:15px;box-shadow:0 10px 28px #0002}.row{display:flex;align-items:center;justify-content:space-between;gap:10px}.row.wrap{flex-wrap:wrap}.flex{display:flex;gap:9px;align-items:center}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:15px}.actions>button{flex:1}.sub{font-size:12px;color:var(--dim);line-height:1.55;margin-top:8px}.divider{border:0;border-top:1px solid #34475d;margin:17px 0}.pill{display:inline-flex;gap:7px;align-items:center;font-size:11px;font-weight:800;padding:8px 10px;border:1px solid #4b6380;border-radius:30px;color:#c5d4ea;white-space:nowrap}.dot{width:8px;height:8px;background:#899db9;border-radius:50%}.connected .dot{background:var(--good)}.connecting .dot{background:var(--warn)}.big{font-size:55px;font-weight:780;letter-spacing:-.06em;line-height:1.1;font-variant-numeric:tabular-nums;text-align:center}.statgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:14px}.stat{background:#213148;border-radius:11px;padding:12px;min-width:0}.stat small{display:block;color:#a7b9d1;font-size:11px;margin-bottom:5px}.stat b{display:block;font-size:13px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}.status{margin-top:12px;background:#263951;border-radius:11px;padding:12px 13px;color:#c7dcf5;font-size:12px;line-height:1.55}.status.error{background:#4b2936;color:#ffd6dc}.notice{background:#273346;border-left:3px solid #eabf71;border-radius:8px;padding:11px 13px;font-size:12px;color:#ebd8ad;margin-top:14px;line-height:1.55}.muted{color:var(--dim)}.ok{color:var(--good)}.caution{color:var(--warn)}.unknown{color:#aebdd3}.active-state{color:#ff9a9e}.snooze-state{color:#f3ca80}.stopped-state{color:#64dab0}.smalltext{font-size:12px;color:var(--dim)}
+.field{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:700;color:#c0cfe3}.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}input[type=number],input[type=time],input[type=text],select{width:100%;min-width:0;box-sizing:border-box;border-radius:10px;border:1px solid #56708d;background:#213149;color:#f4f8ff;padding:11px 12px}input[type=range]{width:100%;accent-color:#8bb7ff}input[type=checkbox]{accent-color:#8bb7ff;width:18px;height:18px}.check{display:flex;align-items:center;gap:9px;font-size:13px;color:#dde8f5}.presetgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin:15px 0}.presetgrid button{font-size:12px;padding:13px 3px}.alarmitem{padding:14px 0;border-bottom:1px solid #34485f}.alarmitem:last-child{border-bottom:0}.alarmclock{font-size:26px;font-weight:770;letter-spacing:-.045em;font-variant-numeric:tabular-nums}.alarmtitle{font-weight:700;font-size:14px}.detail{font-size:12px;color:#aebed2;margin-top:4px}.alarmbuttons{display:flex;gap:7px;margin-top:11px;flex-wrap:wrap}.alarmbuttons button{font-size:12px;padding:7px 12px}.days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.days button{padding:10px 0;font-size:12px}.segment{display:flex;gap:7px;flex-wrap:wrap}.segment button{font-size:12px;padding:9px 12px}.stimrow{display:grid;grid-template-columns:1fr 90px;gap:12px;align-items:center;margin:12px 0}.stimrow strong{font-size:13px}.stimrow small{display:block;color:#a9bad0;font-size:11px;line-height:1.3;margin-top:3px}.calc{background:#213048;border:1px solid #354962;border-radius:13px;padding:12px;font-variant-numeric:tabular-nums}.calc strong{font-size:13px}.calc p{font-size:12px;color:#bdcce2;margin-top:6px;line-height:1.65}.rangehead{display:flex;justify-content:space-between;gap:10px;margin:10px 0 5px;font-size:12px;font-weight:700}.switchline{display:flex;justify-content:space-between;align-items:center;gap:15px;margin:12px 0}.quiet{font-size:11px;line-height:1.5;color:#b6c3d3;margin-top:8px}.log{padding:0;list-style:none;margin:10px 0 0;max-height:220px;overflow-y:auto}.log li{border-top:1px solid #354960;padding:9px 0;font-size:12px;color:#d6e2f2;display:flex;gap:10px}.log time{color:#93a8c2;min-width:75px;font-variant-numeric:tabular-nums}details summary{color:#b6d2f6;cursor:pointer;font-size:12px}
+[hidden]{display:none!important}dialog{border:1px solid #527092;border-radius:20px;background:#142033;color:#eef4ff;width:min(730px,calc(100vw - 24px));max-height:92vh;overflow:auto;padding:0;box-shadow:0 30px 80px #0009}dialog::backdrop{background:#050911d6}.dialoginner{padding:20px}.dialogheader{display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;padding:16px 20px;background:#17253a;border-bottom:1px solid #354d69;z-index:2}dialog h2{font-size:19px}.editorfoot{position:sticky;bottom:0;background:#17253a;padding:12px 20px;display:flex;gap:9px;justify-content:end;border-top:1px solid #354d69}.editorfoot button{min-width:110px}
+@media(max-width:520px){main{padding:13px 11px 80px}header{margin-top:5px}h1{font-size:25px}.card{padding:15px;margin-top:12px}.statgrid{grid-template-columns:repeat(2,1fr)}.statgrid .stat:last-child{grid-column:span 2}.grid2{gap:8px}.grid3{grid-template-columns:repeat(3,minmax(0,1fr))}.stat b{font-size:12px}.presetgrid{grid-template-columns:repeat(5,1fr)}.presetgrid button{font-size:11px}.dialoginner{padding:15px}.editorfoot{padding:12px}.big{font-size:49px}}
+</style></head>
+<body><main>
+<header><div><div class="eyebrow">SHOCK CLOCK 3 · WEB BLUETOOTH</div><h1>Pavlok Control</h1><p class="intro">Connection · Alarms · Timer</p></div><div class="version">V1.9 · WEB APP</div></header>
+<nav class="tabs" role="tablist" aria-label="App sections"><button data-tab="connection">Connection</button><button class="active" data-tab="alarms">Alarms</button><button data-tab="timer">Timer</button></nav>
+<section class="page" id="connection">
+ <div class="card"><div class="row wrap"><h2>Watch connection</h2><span id="connBadge" class="pill"><span class="dot"></span><span id="connText">Disconnected</span></span></div>
+ <div class="actions"><button class="primary" id="connectBtn">Connect to watch</button><button class="ghost" id="disconnectBtn" disabled>Disconnect</button><button id="installBtn" class="ghost" hidden>Install icon</button></div>
+ <div class="statgrid"><div class="stat"><small>Watch</small><b id="watchName">—</b></div><div class="stat"><small>Battery</small><b id="battery">—</b></div><div class="stat"><small>Events this session</small><b id="eventCount">0</b></div></div>
+ <div class="status" id="connectStatus" role="status" aria-live="polite">On your first visit to this HTTPS address, tap Connect once. Later launches can reconnect automatically.</div><p class="quiet" id="connectionHealth">Waiting for connection</p></div>
+<div class="card"><div class="row"><h2>Event log</h2><button class="small ghost" id="clearLogBtn">Clear</button></div><ul class="log" id="log"><li><time>—</time><span>No events</span></li></ul><details style="margin-top:12px"><summary>Reliability and safety details</summary><p class="quiet">The watch runs stored alarms and their native repeating rounds without the browser. A precise custom pulse-by-pulse sequence needs this page open, connected, and active. Reloading temporarily disconnects Bluetooth; reconnect is attempted automatically when browser permission is available. A vibration/zap command being accepted is not proof of a physical response. This unofficial interface is still in testing—keep a second wake-up alarm.</p></details></div>
+</section>
+<section class="page active" id="alarms">
+ <div class="card" id="liveAlarmCard" hidden><div class="row wrap"><h2>Active alarm</h2><span class="pill">Bluetooth required</span></div><div id="alarmState" style="font-size:24px;font-weight:780;margin:15px 0 6px">STATUS UNKNOWN</div><p id="alarmDetail" class="smalltext">Waiting for watch events.</p><div class="statgrid"><div class="stat"><small>Snoozes observed</small><b id="snoozeCount">—</b></div><div class="stat"><small>Snooze remaining</small><b id="snoozeRemaining">—</b></div><div class="stat"><small>Alarm ID</small><b id="activeAlarmId">—</b></div></div>
+ <div class="actions"><button id="snoozeAlarmBtn" disabled>Snooze now</button><button class="danger" id="stopAlarmBtn" disabled>Stop alarm</button></div><p class="quiet">Middle short press snoozes and middle long press stops when supported by the watch’s native alarm handler. Snooze remaining is estimated from the received event; it is not reported as a live clock by the watch.</p></div>
+ <div class="card"><div class="row wrap"><div><h2>Scheduled alarms</h2><p class="sub">Stored on the watch · repeat by day</p></div><span class="pill" id="alarmSyncLabel">Not read</span></div>
+ <div class="actions"><button class="small ghost" id="alarmConnectBtn" hidden>Connect watch</button><button id="readAlarmsBtn">Read from watch</button><button class="primary" id="newAlarmBtn" disabled>+ New alarm</button></div>
+ <div id="alarmList" style="margin-top:12px"><p class="smalltext">Connect to read existing alarms, or tap + New alarm to create the first one.</p></div>
+ <div id="emptyConfirmWrap" class="notice" hidden>No alarm-list response. An empty Shock Clock 3 may not send one. You can still tap <b>+ New alarm</b> and enter its settings. Before saving, we will re-check the watch and ask you to confirm it is truly empty, to avoid replacing an unread alarm. <button class="small ghost" id="confirmEmptyBtn">Mark watch empty now</button>.</div>
+ <div class="status" id="alarmOpStatus">Existing alarms must be read before changing them. Creating the first alarm is allowed after an explicit empty-watch confirmation at save time.</div>
+ <p class="quiet">Alarm stimuli are stored on the watch. Buzz and beep counts: 1–5 each; set 0 to turn either off.</p>
+ </div>
+</section>
+<section class="page" id="timer">
+ <div class="card"><div class="row wrap"><h2>Watch timer</h2><span id="timerBadge" class="pill">Standby</span></div><div id="timerFace" class="big" style="margin:22px 0 2px">00:20</div><p class="smalltext" id="timerStatus" style="text-align:center">Ready to configure</p>
+ <div id="timerSetup"><div class="presetgrid"><button class="selected" data-preset="20">20s</button><button data-preset="300">5m</button><button data-preset="600">10m</button><button data-preset="1200">20m</button><button data-preset="1500">25m</button></div>
+ <label class="field">Custom time (minutes:seconds)<input type="text" id="duration" value="0:20" inputmode="text" placeholder="0:20"></label>
+ <h3 style="margin-top:20px">Repeating alert sequence</h3><p class="smalltext">Buzz → beep → zap · repeats until you press the middle button. Hold to stop and reset.</p>
+ <div class="stimrow"><div><strong>Buzzes · 100%</strong></div><input id="timerBuzzCount" type="number" min="0" max="15" value="3"></div>
+ <div class="stimrow"><div><strong>Beeps · 100%</strong></div><input id="timerBeepCount" type="number" min="0" max="15" value="3"></div>
+ <div class="stimrow"><div><strong>Zaps</strong></div><input id="timerZapCount" type="number" min="0" max="10" value="1"></div>
+ <div class="rangehead"><span>Timer zap intensity (fixed)</span><strong id="timerZapMaxText">40%</strong></div><input type="range" id="timerZapMax" min="20" max="80" step="10" value="40"><div class="calc" style="margin-top:14px"><strong>Repeating sequence preview</strong><p id="timerSequencePreview">Buzz 100% × 3 → Beep 100% × 3 → Zap 40% → 3s gap → REPEAT</p></div>
+ <label class="check" style="margin-top:14px"><input type="checkbox" id="timerConfirmBuzz" checked>Gentle 30% confirmation buzz on start</label></div>
+ <div class="actions"><button id="timerStartBtn" class="primary" disabled>Set & start</button><button id="timerSnoozeBtn" disabled>Snooze timer</button></div>
+ <div class="actions"><button id="timerPauseBtn" disabled>Pause</button><button id="timerResumeBtn" disabled>Resume</button><button id="timerStopBtn" class="danger" disabled>STOP alert</button></div>
+ <div class="status" id="timerWriteStatus">Ready to start a timer.</div>
+ <p class="quiet" id="timerModeNotice">Keep this page open for repeating timer alerts. Hold the middle button to stop.</p>
+ </div>
+</section>
+<dialog id="alarmEditor"><div class="dialogheader"><h2 id="editorTitle">New alarm</h2><button class="small ghost" id="closeEditorBtn">✕</button></div><div class="dialoginner">
+ <div class="grid2"><label class="field">Name<input id="editName" type="text" maxlength="20" value="Wake up"></label><label class="field">Time<input id="editTime" type="time" value="07:00"></label></div>
+ <h3 style="margin:20px 0 8px">Repeat on days</h3><div class="days" id="dayButtons"><button data-day="2">M</button><button data-day="4">T</button><button data-day="8">W</button><button data-day="16">T</button><button data-day="32">F</button><button data-day="64">S</button><button data-day="1">S</button></div>
+ <div class="segment" style="margin-top:9px"><button class="small ghost" data-days="127">Every day</button><button class="small ghost" data-days="62">Weekdays</button><button class="small ghost" data-days="65">Weekends</button></div>
+ <hr class="divider"><h3>Stimulus settings</h3><div class="stimrow"><div><strong>Buzzes · 100%</strong><small>1–5 pulses; 0 turns buzz off</small></div><input id="editBuzzCount" type="number" min="0" max="5" step="1" value="3"></div>
+ <div class="stimrow"><div><strong>Beeps · 100%</strong><small>1–5 pulses; 0 turns beep off</small></div><input id="editBeepCount" type="number" min="0" max="5" step="1" value="3"></div>
+ <div class="stimrow"><div><strong>Zap count</strong><small>Watch supports 1–15 pulses when zaps are enabled</small></div><input type="number" min="0" max="15" id="editZapCount" value="1"></div>
+ <div class="rangehead"><span id="editZapIntensityLabel">Configured zap intensity</span><strong id="editZapMaxText">70%</strong></div><input type="range" id="editZapMax" min="50" max="100" step="10" value="70">
+ <div class="calc" style="margin-top:14px"><strong>Watch alarm configuration</strong><p id="editSeqPreview"></p><p id="editEscalateNote" class="sub"></p></div>
+ <label class="field" style="margin-top:15px">Zap behavior<select id="editEscalate"><option value="1">Native escalation ON</option><option value="0">Fixed zap intensity</option></select></label>
+ <label class="check" style="margin-top:14px"><input type="checkbox" id="editEnabled" checked>Alarm enabled</label>
+ <p class="quiet">Middle button: press to snooze, hold to stop. Alarms remain on the watch when this page closes.</p>
+ </div><div class="editorfoot"><button class="ghost" id="cancelEditorBtn">Cancel</button><button class="primary" id="saveEditorBtn">Save to watch</button></div></dialog>
+</main>
+<script>
+'use strict';
+const $=id=>document.getElementById(id),sleep=ms=>new Promise(r=>setTimeout(r,ms)),now=()=>new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const uuid={alarmService:'156e5000-a300-4fea-897b-86f698d74461',control:'00005001-0000-1000-8000-00805f9b34fb',data:'00005002-0000-1000-8000-00805f9b34fb',alarmNotify:'00005003-0000-1000-8000-00805f9b34fb',eventService:'156e2000-a300-4fea-897b-86f698d74461',eventNotify:'00002002-0000-1000-8000-00805f9b34fb',timerService:'156e7000-a300-4fea-897b-86f698d74461',timer:'00007001-0000-1000-8000-00805f9b34fb',stimService:'156e1000-a300-4fea-897b-86f698d74461',vibe:'00001001-0000-1000-8000-00805f9b34fb',beep:'00001002-0000-1000-8000-00805f9b34fb',zap:'00001003-0000-1000-8000-00805f9b34fb',batteryService:'battery_service',battery:'battery_level'};
+const defaults={snooze:5,gap:1,buzz:3,beep:3,zaps:1,max:70,confirm:true};
+function readLocal(key,fallback){try{let s=localStorage.getItem(key);return s?JSON.parse(s):fallback}catch{return fallback}}
+function storeLocal(key,value){try{localStorage.setItem(key,JSON.stringify(value))}catch{}}
+const pref=Object.assign({},defaults,readLocal('pc-v1-pref',{}));pref.snooze=5;pref.gap=1;
+// Snooze and pulse timing are fixed presets, not UI controls.
+const app={device:null,server:null,ch:{},want:false,manual:false,connecting:false,retry:null,attempts:0,busy:false,events:0,log:[],lastDrop:null,lastConnect:null,alarmPending:null,writeAcks:[],alarms:null,alarmsTrusted:false,editorIndex:-1,editorSource:null,editorMask:127,meta:readLocal('pc-v1-alarm-meta',{}),activeAlarm:null,snoozes:0,snoozeUntil:null,snoozeEstimated:false,timer:{seconds:20,baseSeconds:20,remaining:20,deadline:null,running:false,paused:false,seen:false,finished:false,notified:false,seq:[],elapsed:0,phase:'ready',cycle:0,zapsSent:0,ignoreStopsUntil:0,sessionActive:false},seqRunning:false,seqCancel:false,seqToken:0,pendingShortPress:null,pendingMiddleAction:null,processingMiddleAction:false,lastMiddleShortAt:0,lastMiddleLongAt:0};
+const isOn=()=>Boolean(app.server&&app.server.connected&&app.device&&app.device.gatt.connected);
+function fmt(s){s=Math.max(0,Math.ceil(s));return `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor(s%3600/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`.replace(/^00:/,'')}
+function log(msg,watch=false){if(watch)app.events++; $('eventCount').textContent=String(app.events);app.log.unshift({at:now(),msg});app.log.length=Math.min(app.log.length,120);$('log').replaceChildren(...app.log.map(o=>{let li=document.createElement('li'),t=document.createElement('time'),b=document.createElement('span');t.textContent=o.at;b.textContent=o.msg;li.append(t,b);return li}))}
+function message(id,txt,error=false){$(id).textContent=txt;$(id).className='status'+(error?' error':'')}
+function tab(name){for(const el of document.querySelectorAll('.page'))el.classList.toggle('active',el.id===name);for(const b of document.querySelectorAll('[data-tab]'))b.classList.toggle('active',b.dataset.tab===name)}
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>tab(b.dataset.tab)));
+function health(){let t=`Reconnect attempts ${app.attempts} · Last connected ${app.lastConnect||'never'}`;if(app.lastDrop)t+=` · Last disconnect ${app.lastDrop}`;if(document.hidden)t+=' · Browser backgrounded';$('connectionHealth').textContent=t}
+function refreshConnection(){let on=isOn();$('connBadge').className='pill '+(on?'connected':app.connecting?'connecting':'');$('connText').textContent=on?'Connected':app.connecting?'Connecting…':'Disconnected';$('connectBtn').textContent=app.device?'Reconnect watch':'Connect to watch';$('connectBtn').disabled=on||app.connecting;$('disconnectBtn').disabled=!on&&!app.connecting;$('readAlarmsBtn').disabled=!on||app.busy;$('alarmConnectBtn').hidden=on||app.connecting;$('newAlarmBtn').disabled=!on||app.busy;for(const b of document.querySelectorAll('[data-alarm-action]'))b.disabled=!on||app.busy||!app.alarmsTrusted;for(let id of ['timerStartBtn','timerPauseBtn','timerResumeBtn','timerStopBtn','timerSnoozeBtn','snoozeAlarmBtn','stopAlarmBtn'])$(id).disabled=!on||app.busy||((id==='snoozeAlarmBtn'||id==='stopAlarmBtn')&&!app.activeAlarm)||((id==='timerSnoozeBtn')&&!app.timer.seen&&!app.timer.finished);health()}
+function alarmState(state,text,klass){$('alarmState').textContent=state;$('alarmState').className=klass;$('alarmDetail').textContent=text;$('liveAlarmCard').hidden=!(state==='ALARM FIRING'||state==='SNOOZING');}
+function onAlarmNotify(bytes){if(bytes.length<4)return;let [op,,id]=bytes;if(op===0x56&&id===0)return;if(![0x54,0x55,0x56].includes(op))return;
+ if(op===0x54){if(!app.activeAlarm||app.activeAlarm.id!==id){app.snoozes=0}app.activeAlarm={id,firing:true};app.snoozeUntil=null;alarmState('ALARM FIRING',`Watch alarm #${id} is firing.`, 'active-state');log(`Alarm ${id} firing`,true)}
+ if(op===0x55){app.activeAlarm={id,firing:false};app.snoozes++;app.snoozeUntil=Date.now()+5*60000;alarmState('SNOOZING',`Alarm ${id} snoozed · 5-minute watch-firmware estimate`, 'snooze-state');log(`Alarm ${id} snoozed`,true)}
+ if(op===0x56){app.activeAlarm=null;app.snoozeUntil=null;alarmState('DISMISSED',`Watch alarm #${id} stopped`, 'stopped-state');log(`Alarm ${id} dismissed`,true)}
+ $('snoozeCount').textContent=String(app.snoozes);$('activeAlarmId').textContent=String(id);refreshConnection();}
+function onWatchEvents(bytes){
+ if(!bytes.length)return;
+ if(bytes[0]===0x0d){
+  if(bytes.length<7){log('Watch timer idle',true);return}
+  if(bytes[1]!==2)return;
+  const elapsed=bytes[3]|(bytes[4]<<8)|(bytes[5]<<16),run=Boolean(bytes[2]&0x80),t=app.timer;
+  if(t.phase==='ready'||t.phase==='resetting'){log('Ignored stale watch timer telemetry while ready/resetting',true);return}
+  t.seen=true;t.elapsed=elapsed;
+  // A watch may report 'stopped' after finishing. That must not cancel the
+  // browser-managed repeating alert or overwrite the visible ALERTING state.
+  if(t.phase==='alerting'){if(!run)log('Watch timer finished; repeating alert still active',true);return}
+  if((t.phase==='snoozing'||t.phase==='countdown')&&!run&&Date.now()<t.ignoreStopsUntil&&elapsed<t.seconds){log('Ignored stale timer-stop packet after rearming',true);return}
+  t.running=run;
+  t.remaining=Math.max(0,t.seconds-elapsed);
+  t.deadline=run?Date.now()+t.remaining*1000:null;
+  if(!run&&elapsed>=t.seconds&&t.seconds>0){
+   t.finished=true;t.remaining=0;t.running=false;
+   if(!t.notified){t.notified=true;log(`Timer finished at ${fmt(elapsed)}`,true);handleTimerCompletion()}
+  }else{
+   if(run){t.finished=false;t.phase=t.phase==='snoozing'?'snoozing':'countdown';$('timerBadge').textContent=t.phase==='snoozing'?'Snoozing':'Running';$('timerStatus').textContent=t.phase==='snoozing'?'Snooze countdown running on watch':'Running on watch · event observed'}
+   else if(!run&&t.phase==='snoozing'&&elapsed<t.seconds&&Date.now()>=t.ignoreStopsUntil){log('Watch stopped snooze before expiry; restoring selected timer',true);onTimerStoppedByWatch()}else if(t.phase!=='stopped'){$('timerBadge').textContent=t.phase==='snoozing'?'Snoozing':'Paused';$('timerStatus').textContent=t.phase==='snoozing'?'Snooze countdown awaiting watch':'Watch reports timer stopped / paused'}
+   log(`Timer event ${run?'running':'stopped'} · elapsed ${fmt(elapsed)}`,true)
+  }
+  renderClock();refreshConnection();
+ }
+ if(bytes[0]===0x05&&bytes.length>=2){
+  const mask=bytes[1]&0xf0,press=bytes[1]&0x0f;
+  if(mask===0x20){
+   if(press===1)log('Middle button: short press observed',true);
+   else if(press===3)log('Middle button: long press observed',true);
+   if(press===1||press===3)onMiddleButton(press);
+  }
+ }
+}
+// Watch button events are separate from timer-state notifications. The watch can
+// report stopped/paused before the long-press event arrives, so use the
+// sessionActive latch instead of requiring a currently running countdown.
+function onMiddleButton(press){
+ if(!isOn()||document.hidden||app.activeAlarm||(!app.timer.sessionActive&&app.timer.phase==='ready')){
+  if(press===3)log('Middle long press observed; no web-managed timer session to reset');
+  return;
+ }
+ const stamp=Date.now();
+ if(press===3){
+  // A long hold always wins, even when a short packet arrived first.
+  if(stamp-app.lastMiddleLongAt<750)return;
+  app.lastMiddleLongAt=stamp;
+  if(app.pendingShortPress!==null){clearTimeout(app.pendingShortPress);app.pendingShortPress=null}
+  cancelSequence('Watch middle-button long press');
+  const t=app.timer;
+  t.running=false;t.deadline=null;t.seconds=t.baseSeconds;t.remaining=t.baseSeconds;
+  t.phase='resetting';t.finished=false;t.notified=false;
+  $('timerBadge').textContent='Resetting';
+  $('timerStatus').textContent=`Middle held · resetting to ${fmt(t.baseSeconds)} on watch…`;
+  renderClock();
+  log(`Long middle press recognized; reset queued to ${fmt(t.baseSeconds)}`);
+  queueMiddleCommand('reset');
+  return;
+ }
+ // A brief delay lets long-press notifications take precedence. We do not
+ // suppress a long press just because a short packet was seen recently.
+ if(stamp-app.lastMiddleShortAt<750||app.pendingShortPress!==null)return;
+ app.lastMiddleShortAt=stamp;
+ app.pendingShortPress=setTimeout(()=>{
+  app.pendingShortPress=null;
+  if(!app.timer.sessionActive||app.activeAlarm||!isOn()||document.hidden)return;
+  log('Short middle press recognized; timer snooze queued');
+  queueMiddleCommand('snooze');
+ },950);
+}
+// Watch-reported early snooze stop is treated as a physical STOP/reset,
+// even if the separate long-button event arrives late or is missing.
+function onTimerStoppedByWatch(){
+ const t=app.timer;if(!t.sessionActive)return;
+ cancelSequence('Watch stopped timer');
+ t.running=false;t.deadline=null;t.seconds=t.baseSeconds;t.remaining=t.baseSeconds;
+ t.finished=false;t.notified=false;t.paused=false;t.phase='ready';t.sessionActive=false;
+ $('timerBadge').textContent='Ready';$('timerStatus').textContent=`Reset to ${fmt(t.baseSeconds)} · ready`;
+ renderClock();queueMiddleCommand('reset');
+}
+// BLE writes cannot overlap. A long press takes priority over an outstanding
+// snooze/write, and is retried after the current operation releases app.busy.
+function queueMiddleCommand(action){
+ if(action==='reset'||app.pendingMiddleAction!=='reset')app.pendingMiddleAction=action;
+ if(app.processingMiddleAction)return;
+ app.processingMiddleAction=true;
+ void (async()=>{
+  try{
+   while(app.pendingMiddleAction){
+    const start=Date.now();
+    while(app.busy&&Date.now()-start<12000)await sleep(100);
+    if(app.busy){log('Middle button request timed out waiting for Bluetooth write');message('timerWriteStatus','Watch button reset could not be sent; retry using STOP alert.',true);break}
+    if(!isOn()){log('Middle button request could not reach disconnected watch');message('timerWriteStatus','Watch disconnected before the button command could finish.',true);break}
+    const next=app.pendingMiddleAction;app.pendingMiddleAction=null;
+    await timerCommand(next);
+   }
+  }catch(e){log('Middle button command failed: '+e.message);message('timerWriteStatus','Watch button command failed: '+e.message,true)}
+  finally{app.pendingMiddleAction=null;app.processingMiddleAction=false}
+ })();
+}
+function renderClock(){let t=app.timer;const configuring=t.phase==='ready'||t.phase==='stopped';$('timerSetup').hidden=!configuring;$('timerStartBtn').hidden=!configuring;let rem=t.running&&t.deadline?Math.max(0,Math.ceil((t.deadline-Date.now())/1000)):t.remaining;$('timerFace').textContent=fmt(rem);if(t.running&&rem===0&&!t.finished)$('timerStatus').textContent='Countdown at zero · waiting for watch completion event';if(app.snoozeUntil){$('snoozeRemaining').textContent=fmt((app.snoozeUntil-Date.now())/1000)+' est.';if(Date.now()>=app.snoozeUntil)$('snoozeRemaining').textContent='00:00 est.'}else $('snoozeRemaining').textContent='—'}
+function onDrop(){cancelSequence('Bluetooth disconnected');app.server=null;app.ch={};app.lastDrop=now();alarmState('STATUS UNKNOWN','Bluetooth disconnected. Watch alarms may continue independently.','unknown');app.activeAlarm=null;app.snoozeUntil=null;app.alarmsTrusted=false;$('alarmSyncLabel').textContent='Needs reread';refreshConnection();log('Bluetooth disconnected');if(app.want&&!app.manual)retry();else message('connectStatus','Disconnected by user. Watch alarms remain on the device.');}
+function chooseDevice(d){if(app.device&&app.dropHandler)app.device.removeEventListener('gattserverdisconnected',app.dropHandler);app.device=d;storeLocal('pc-v19-last-device-id',d.id);app.dropHandler=()=>onDrop();d.addEventListener('gattserverdisconnected',app.dropHandler);$('watchName').textContent=d.name||'Pavlok 3'}
+async function sub(server,svc,chr,cb){let s=await server.getPrimaryService(svc),c=await s.getCharacteristic(chr);await c.startNotifications();c.addEventListener('characteristicvaluechanged',e=>{let v=e.target.value;if(v)cb(new Uint8Array(v.buffer,v.byteOffset,v.byteLength))});return c}
+async function connect(){if(app.connecting||isOn())return;if(!navigator.bluetooth){message('connectStatus','This page needs a Web Bluetooth-capable Android browser and secure origin.',true);return}app.want=true;app.manual=false;if(!app.device){try{let d=await navigator.bluetooth.requestDevice({filters:[{namePrefix:'Pavlok-3-'}],optionalServices:[uuid.alarmService,uuid.eventService,uuid.timerService,uuid.stimService,uuid.batteryService]});chooseDevice(d)}catch(e){app.want=false;message('connectStatus','Bluetooth picker cancelled: '+e.message,true);return}}await establish()}
+async function establish(){if(app.connecting||!app.device||isOn()||!app.want)return;app.connecting=true;refreshConnection();try{
+ let server=await app.device.gatt.connect();if(!app.want){server.disconnect();return}app.server=server;let ch={};app.ch=ch;
+ try{ch.alarmNotify=await sub(server,uuid.alarmService,uuid.alarmNotify,onAlarmNotify);ch.ctrl=await sub(server,uuid.alarmService,uuid.control,onAlarmControlData);ch.data=await sub(server,uuid.alarmService,uuid.data,onAlarmWriteAck)}catch(e){log('Alarm channel unavailable: '+e.message)}
+ try{ch.events=await sub(server,uuid.eventService,uuid.eventNotify,onWatchEvents)}catch(e){log('Event channel unavailable: '+e.message)}
+ try{ch.timer=await sub(server,uuid.timerService,uuid.timer,onTimerConfig)}catch(e){try{let s=await server.getPrimaryService(uuid.timerService);ch.timer=await s.getCharacteristic(uuid.timer)}catch(_){}log('Timer readback unavailable: '+e.message)}
+ try{let s=await server.getPrimaryService(uuid.stimService);ch.vibe=await s.getCharacteristic(uuid.vibe);ch.beep=await s.getCharacteristic(uuid.beep);ch.zap=await s.getCharacteristic(uuid.zap)}catch(e){log('Instant stimuli unavailable: '+e.message)}
+ try{let s=await server.getPrimaryService(uuid.batteryService);ch.battery=await s.getCharacteristic(uuid.battery);let b=await ch.battery.readValue();$('battery').textContent=b.getUint8(0)+'%'}catch(e){$('battery').textContent='?';log('Battery read unavailable: '+e.message)}
+ if(!server.connected)throw Error('Disconnected during channel setup');app.attempts=0;app.lastConnect=now();refreshConnection();message('connectStatus','Connected. Existing watch alarms are not modified by connecting.');log('Connected to '+app.device.name);if(ch.ctrl&&ch.data)try{await readAlarms()}catch(e){log('Initial alarm read: '+e.message)}
+ }catch(e){app.server=null;app.ch={};message('connectStatus','Connection error: '+e.message,true);log('Connect error: '+e.message);if(app.want)retry()}finally{app.connecting=false;refreshConnection()}}
+function retry(){if(app.retry)clearTimeout(app.retry);if(!app.want||!app.device||document.hidden||isOn())return;let delay=Math.min(30000,1500*2**Math.min(4,app.attempts++));message('connectStatus',`Link lost; reconnecting in ${Math.round(delay/1000)}s while page is active.`);app.retry=setTimeout(()=>{app.retry=null;establish()},delay)}
+function disconnect(){cancelSequence('Disconnected manually');app.manual=true;app.want=false;if(app.retry)clearTimeout(app.retry);if(app.device?.gatt.connected)app.device.gatt.disconnect();app.server=null;app.ch={};app.alarmsTrusted=false;refreshConnection();message('connectStatus','Disconnected. Stored watch alarms are unchanged.');log('Disconnected manually')}
+async function restore(){
+ if(app.connecting||isOn()||!navigator.bluetooth?.getDevices)return;
+ try{
+  const allowed=(await navigator.bluetooth.getDevices()).filter(d=>d.name?.startsWith('Pavlok-3-'));
+  const last=readLocal('pc-v19-last-device-id',null);
+  const old=allowed.find(d=>d.id===last)||allowed[0];
+  if(old){chooseDevice(old);app.want=true;app.manual=false;
+   message('connectStatus','Reconnecting to authorized watch…');await establish();
+  }else{
+   message('connectStatus','Tap Connect to watch once on this HTTPS site. Later launches can reconnect automatically.');
+  }
+ }catch(e){log('Previously authorized watch unavailable: '+e.message);message('connectStatus','Automatic connection unavailable. Tap Connect to watch.',true)}
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&app.seqRunning)cancelSequence('Browser backgrounded; custom sequence stopped');if(!document.hidden&&app.want&&!isOn()&&!app.connecting)retry();else if(!document.hidden&&!app.want&&!app.manual&&!isOn())void restore();health()});
+async function write(ch,arr){if(!isOn()||!ch)throw Error('Watch not connected or required characteristic unavailable');let bytes=Uint8Array.from(arr);if(ch.writeValueWithResponse)await ch.writeValueWithResponse(bytes);else if(ch.writeValue)await ch.writeValue(bytes);else throw Error('Browser does not support Bluetooth write')}
+async function safeOp(fn){if(app.busy)return;app.busy=true;refreshConnection();try{await fn()}catch(e){log('Command failed: '+e.message);message('connectStatus','Command failed: '+e.message,true)}finally{app.busy=false;refreshConnection()}}
+function onAlarmControlData(data){let p=app.alarmPending;if(!p)return;p.chunks.push(...data);let b=p.chunks; if(b.length>=6&&b[0]===65&&b[1]===72){let total=4+(b[2]|b[3]<<8);if(b.length>=total){clearTimeout(p.timeout);app.alarmPending=null;p.resolve(Uint8Array.from(b.slice(0,total)))}}}
+function onAlarmWriteAck(data){app.writeAcks.push(Array.from(data));if(app.writeAcks.length>20)app.writeAcks.shift()}
+const textBytes=s=>new TextEncoder().encode(s);const fromBytes=b=>new TextDecoder().decode(Uint8Array.from(b));const u16=n=>[n&255,(n>>8)&255];const TLV=(tag,arr)=>[...textBytes(tag),...u16(arr.length),...arr];const bcd=n=>(Math.floor(n/10)<<4)|(n%10);const unbcd=n=>((n>>4)*10)+(n&15);const u16At=(b,i)=>b[i]|(b[i+1]<<8);
+function crc16(arr){let c=65535;for(let b of arr){c^=b<<8;for(let k=0;k<8;k++)c=(c&32768)?((c<<1)^0x1021)&65535:(c<<1)&65535}return c}
+function mkAlarmBlock(a,id){
+ if(a.__tags&&!a.__modified){
+   // Unedited alarms are written byte-for-byte, except for re-indexing ID.
+   // This prevents editing another alarm from resetting original intensity,
+   // guarantor, light-sleep, smart-alarm or other undocumented settings.
+   const raw=a.__tags.flatMap(t=>TLV(t.key,t.key==='ID'?u16(id):t.value));
+   return [...textBytes('HA'),...u16(raw.length),...raw];
+ }
+ // Preserve unknown/advanced TLVs from previously read alarms: changing one alarm
+ // must not quietly erase unrelated guarantors, smart alarm or light-sleep features.
+ const old=a.__tags||[],pick=k=>old.find(x=>x.key===k)?.value;
+ const originalAO=(pick('AO')||[1])[0],originalSN=(pick('SN')||[0])[0];
+ let [hr,min]=a.time.split(':').map(Number),parts=[
+   ['AN',Array.from(textBytes(a.name)).slice(0,20)],
+   ['TM',[0,bcd(min),bcd(hr),(a.enabled?128:0)|(a.days&127)]],
+   ['WD',pick('WD')||[30]],
+   ['WI',u16(a.interval)],
+   ['SN',[(a.snooze?1:0)|(a.snooze?(originalSN&2):0)]],
+   ['AO',[a.enabled?((originalAO&~32)||1)|(a.escalate?32:0):0]]
+ ];
+ const accounted=new Set(['AN','TM','WD','WI','SN','AO','ES','MH','PH','ZH','ID']);
+ // Preserve known and unknown optional extras verbatim, unless escalation was turned off.
+ for(const item of old){if(!accounted.has(item.key)||(['JL','SM'].includes(item.key))){
+   // Only keep wake guarantor/smart alarm config when the alarm remains enabled.
+   if(a.enabled)parts.push([item.key,item.value]);
+ }}
+ if(a.enabled&&a.escalate)parts.push(['ES',pick('ES')||[5]]);
+ if(a.buzz>0)parts.push(['MH',TLV('MC',[0x80|a.buzz,0x0c,100,0xfa,0xfa])]);
+ if(a.beep>0)parts.push(['PH',TLV('PC',[0x80|a.beep,0x0c,100,0xfa,0xfa])]);
+ if(a.zaps>0)parts.push(['ZH',TLV('ZC',[0x80|a.zaps,a.max])]);
+ parts.push(['ID',u16(id)]);
+ const tags=parts.flatMap(([key,value])=>TLV(key,value));
+ return [...textBytes('HA'),...u16(tags.length),...tags]
+}
+function mkAlarmPacket(alarms){let body=TLV('AP',Array.from(textBytes('Single 1')));alarms.forEach((a,i)=>body.push(...mkAlarmBlock(a,i+1)));let msg=[...textBytes('AH'),...u16(body.length+2),0,0,...body],c=crc16(msg);msg[4]=c&255;msg[5]=c>>8;return msg}
+function extractTLV(buf,start,end){const o=[];let p=start;while(p+4<=end){let len=u16At(buf,p+2),q=p+4;if(q+len>end)break;o.push({key:fromBytes(buf.slice(p,p+2)),value:buf.slice(q,q+len)});p=q+len}return o}
+function getTag(tags,k){return tags.find(x=>x.key===k)?.value}
+function parseAlarmPacket(raw){let b=Array.from(raw);if(b.length<6||b[0]!==65||b[1]!==72)throw Error('Unknown alarm response header');let all=extractTLV(b,6,b.length),a=[];for(let item of all){if(item.key!=='HA')continue;let t=extractTLV(item.value,0,item.value.length),nm=getTag(t,'AN')||[],tm=getTag(t,'TM')||[0,0,0,0],wi=getTag(t,'WI')||[15,0],sn=getTag(t,'SN')||[1],ao=getTag(t,'AO')||[0],mh=getTag(t,'MH'),ph=getTag(t,'PH'),zh=getTag(t,'ZH');let z=zh?getTag(extractTLV(zh,0,zh.length),'ZC'):null;let mc=mh?getTag(extractTLV(mh,0,mh.length),'MC'):null;let pc=ph?getTag(extractTLV(ph,0,ph.length),'PC'):null;let h=unbcd(tm[2]),m=unbcd(tm[1]);if(h>23||m>59)throw Error('Alarm time parse failed');let rec={name:fromBytes(nm)||'Alarm',time:`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`,days:tm[3]&127,enabled:Boolean(tm[3]&128)&&Boolean(ao[0]),snooze:Boolean(sn[0]&1),interval:u16At(wi,0),escalate:Boolean(ao[0]&32),buzz:mc&&mc[0]&128?(mc[0]&127):0,beep:pc&&pc[0]&128?(pc[0]&127):0,zaps:z?(z[0]&15):0,max:z?z[1]:70,__tags:t.map(v=>({key:v.key,value:Array.from(v.value)}))};if(rec.interval<1)rec.interval=15;a.push(rec)}return a}
+const alarmKey=a=>`${a.name.trim().toLowerCase()}|${a.time}|${a.days}`;
+function daysText(mask){let names=['Su','Mo','Tu','We','Th','Fr','Sa'],bits=[1,2,4,8,16,32,64];if(mask===127)return'Every day';if(mask===62)return'Weekdays';if(mask===65)return'Weekends';return bits.filter(b=>mask&b).map(b=>names[bits.indexOf(b)]).join(' · ')||'No days'}
+function humanTime(t){let [h,m]=t.split(':').map(Number);return `${h%12||12}:${String(m).padStart(2,'0')} ${h>=12?'PM':'AM'}`}
+function renderAlarms(){let root=$('alarmList');root.replaceChildren();if(app.alarms===null){root.textContent='Alarm list unavailable. Try Read from watch.';return}if(!app.alarms.length){root.textContent='No alarms in the current list.';return}for(let i=0;i<app.alarms.length;i++){let a=app.alarms[i],div=document.createElement('div');div.className='alarmitem';let top=document.createElement('div');top.className='row';let left=document.createElement('div'),time=document.createElement('div'),name=document.createElement('div'),detail=document.createElement('div');time.className='alarmclock';time.textContent=humanTime(a.time);name.className='alarmtitle';name.textContent=a.name;detail.className='detail';detail.textContent=`${daysText(a.days)} · Buzz ${a.buzz} · Beep ${a.beep} · Zap ${a.zaps} / ${a.max}% · ${a.escalate?'Escalating':'Fixed'}`;left.append(time,name,detail);let state=document.createElement('span');state.className='pill';state.textContent=a.enabled?'ON':'OFF';top.append(left,state);let actions=document.createElement('div');actions.className='alarmbuttons';for(let [label,act] of [['Edit','edit'],['Copy','copy'],[a.enabled?'Disable':'Enable','toggle'],['Delete','delete']]){let b=document.createElement('button');b.className=act==='delete'?'danger':'';b.textContent=label;b.dataset.alarmAction=act;b.disabled=!app.alarmsTrusted||!isOn()||app.busy;b.onclick=()=>alarmAction(i,act);actions.append(b)}div.append(top,actions);root.append(div)}}
+async function readAlarms(){if(!isOn()||!app.ch.ctrl)throw Error('Alarm read characteristic unavailable');if(app.alarmPending)throw Error('Alarm read already running');$('alarmSyncLabel').textContent='Reading…';const profile=Array.from(textBytes('Single 1'));let timeout;const promise=new Promise((resolve,reject)=>{let pending={chunks:[],resolve,reject,timeout:null};pending.timeout=setTimeout(()=>{if(app.alarmPending===pending){app.alarmPending=null;reject(Error('No alarm-list response from watch'))}},4300);app.alarmPending=pending});try{await write(app.ch.ctrl,[6,0,...profile]);let raw=await promise,alarms=parseAlarmPacket(raw);app.alarms=alarms;app.alarmsTrusted=true;$('alarmSyncLabel').textContent=`${alarms.length} read`;message('alarmOpStatus',`Read ${alarms.length} watch alarm${alarms.length!==1?'s':''}. Edit, copy, enable or delete are now available.`);$('emptyConfirmWrap').hidden=true;renderAlarms();refreshConnection();log(`Read ${alarms.length} watch alarms`);return alarms}catch(e){if(app.alarmPending){clearTimeout(app.alarmPending.timeout);app.alarmPending=null}app.alarmsTrusted=false;$('alarmSyncLabel').textContent=e.message==='No alarm-list response from watch'?'Empty? / unread':'Read failed';message('alarmOpStatus',e.message==='No alarm-list response from watch'?'No alarm-list reply. If the watch has no stored alarms, tap + New alarm; you will confirm before saving.':'Could not prove which alarms the watch stores: '+e.message,e.message!=='No alarm-list response from watch');$('emptyConfirmWrap').hidden=e.message!=='No alarm-list response from watch';refreshConnection();throw e}}
+function showEditor(i=-1,copy=false){if(!isOn()||(i>=0&&(!app.alarmsTrusted||!app.alarms)))return;let a=i>=0?{...app.alarms[i]}:{name:'Wake up',time:'07:00',days:127,enabled:true,snooze:true,interval:15,escalate:true,buzz:3,beep:3,zaps:1,max:70};app.editorIndex=copy?-1:i;app.editorSource=i>=0?app.alarms[i]:null;if(copy)a.name=(a.name+' copy').slice(0,20);$('editorTitle').textContent=i<0?'New alarm':copy?'Copy alarm':'Edit alarm';$('editName').value=a.name;$('editTime').value=a.time;$('editBuzzCount').value=Math.min(5,Math.max(0,a.buzz));$('editBeepCount').value=Math.min(5,Math.max(0,a.beep));$('editZapCount').value=a.zaps;$('editZapMax').value=a.max<50?50:Math.min(100,Math.round(a.max/10)*10);$('editEscalate').value=a.escalate?'1':'0';$('editEnabled').checked=a.enabled;setDays(a.days);renderEditSeq();$('alarmEditor').showModal()}
+function setDays(mask){app.editorMask=mask;for(let b of document.querySelectorAll('[data-day]'))b.classList.toggle('selected',Boolean(mask&Number(b.dataset.day)))}
+function count(id,max){let n=Math.round(Number($(id).value));if(!Number.isFinite(n)||n<0||n>max)throw Error(`Invalid count for ${id}; use 0–${max}`);return n}
+function sequence(buzz,beep,zaps,max){let a=[];for(let i=0;i<buzz;i++)a.push({type:'buzz',pct:100});for(let i=0;i<beep;i++)a.push({type:'beep',pct:100});for(let i=0;i<zaps;i++)a.push({type:'zap',pct:Math.min(50+10*i,max)});return a}
+// Timer zaps intentionally have a single selected level; alarms retain native escalation settings.
+function timerSequence(buzz,beep,zaps,fixedPct){let a=[];for(let i=0;i<buzz;i++)a.push({type:'buzz',pct:100});for(let i=0;i<beep;i++)a.push({type:'beep',pct:100});for(let i=0;i<zaps;i++)a.push({type:'zap',pct:fixedPct});return a}
+function seqText(seq){if(!seq.length)return'No stimuli selected';return seq.map(x=>`${x.type==='buzz'?'Buzz':x.type==='beep'?'Beep':'Zap'} ${x.pct}%`).join(' → ')}
+function renderEditSeq(){
+ const buzz=Math.min(5,Math.max(0,Number($('editBuzzCount').value)||0)),beep=Math.min(5,Math.max(0,Number($('editBeepCount').value)||0));
+ const z=Math.min(15,Math.max(0,Number($('editZapCount').value)||0));
+ const pct=Number($('editZapMax').value),escalate=$('editEscalate').value==='1';
+ $('editZapMaxText').textContent=pct+'%';
+ $('editZapIntensityLabel').textContent=escalate?'Configured zap intensity':'Fixed zap intensity';
+ const items=[buzz?`Buzz × ${buzz} · 100%`:null,beep?`Beep × ${beep} · 100%`:null,z?`Zap × ${z} · ${escalate?'native escalation':'fixed '+pct+'%'}`:null].filter(Boolean);
+ $('editSeqPreview').textContent=items.join(' → ')||'No stimuli selected';
+ $('editEscalateNote').textContent=escalate&&z?'Watch firmware controls escalation; exact steps not decoded.':'';
+}
+function editData(){let buzz=count('editBuzzCount',5),beep=count('editBeepCount',5),zaps=count('editZapCount',15),max=Number($('editZapMax').value);let days=app.editorMask,time=$('editTime').value,name=$('editName').value.trim(),interval=app.editorSource?.interval??15;if(!name)throw Error('Name is required');if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw Error('Select a valid time');if(!days)throw Error('Choose at least one day');if(buzz+beep+zaps===0)throw Error('Choose at least one stimulus');return {name,time,days,buzz,beep,zaps,max,snooze:app.editorSource?.snooze??true,enabled:$('editEnabled').checked,interval,escalate:$('editEscalate').value==='1',__tags:app.editorSource?.__tags,__modified:true}}
+function summaryOf(alarms){return alarms.map(a=>`${a.name}|${a.time}|${a.days}|${+a.enabled}|${+a.snooze}|${+a.escalate}|${a.interval}|${a.buzz}|${a.beep}|${a.zaps}|${a.max}`).join('\n')}
+async function writeAlarms(next,reason){if(!app.alarmsTrusted||!app.alarms||!app.ch.ctrl||!app.ch.data)throw Error('Read current alarms before writing');let snapshot=app.alarms.map(x=>({...x}));storeLocal('pc-v1-last-watch-backup',snapshot);message('alarmOpStatus','Writing the full alarm list to the watch; awaiting readback…');app.writeAcks=[];let packet=mkAlarmPacket(next);await write(app.ch.ctrl,[1,0,...textBytes('Single 1')]);for(let i=0;i<packet.length;i+=20)await write(app.ch.data,packet.slice(i,i+20));await write(app.ch.data,[]);await write(app.ch.ctrl,[0,0,...textBytes('Single 1')]);await sleep(850);
+ app.alarmsTrusted=false;let actual;try{actual=await readAlarms()}catch(e){throw Error('Write sent but could not verify watch alarms. Do not assume changes saved; reconnect and read again. '+e.message)}if(summaryOf(actual)!==summaryOf(next)){message('alarmOpStatus','Alarm readback differs from requested values. Inspect the watch list before relying on it.',true);log('Alarm readback mismatch');return false}renderAlarms();message('alarmOpStatus',`${reason} · watch readback matches scheduling and native stimulus settings.`);log(`${reason} · verified ${actual.length} alarms`);return true}
+async function alarmAction(i,act){if(!app.alarmsTrusted)return;if(act==='edit')return showEditor(i);if(act==='copy')return showEditor(i,true);let next=app.alarms.map(a=>({...a}));if(act==='toggle'){next[i].enabled=!next[i].enabled;next[i].__modified=true};if(act==='delete'){if(!confirm(`Delete alarm “${next[i].name}” from the watch?`))return;next.splice(i,1)}await safeOp(async()=>{try{await writeAlarms(next,act==='delete'?'Alarm deleted':'Alarm toggled')}catch(e){message('alarmOpStatus',e.message,true)}})}
+async function saveEditor(){
+ let a;try{a=editData()}catch(e){alert(e.message);return}
+ if(!isOn()){message('alarmOpStatus','Connect to the watch before saving.',true);return}
+ await safeOp(async()=>{
+   try{
+     // A watch with zero alarms may not reply to READ. We allow the first
+     // alarm to be drafted but NEVER assume a failed read means empty.
+     // Before writing, retry the read and get user authorization if silent.
+     if(!app.alarmsTrusted||!app.alarms){
+       if(app.editorIndex>=0)throw Error('Cannot edit existing alarm without a fresh watch read');
+       try{await readAlarms()}catch(e){
+         if(e.message!=='No alarm-list response from watch')throw e;
+         const verifiedEmpty=confirm('The watch did not respond to an alarm-list request. Some devices do this when there are ZERO alarms.\n\nDo you confirm that this watch currently has NO saved alarms?\n\nOnly select OK if you have verified it is empty. Otherwise select Cancel to protect existing alarms.');
+         if(!verifiedEmpty){message('alarmOpStatus','First-alarm save canceled. No alarms were changed.',true);return}
+         app.alarms=[];
+         app.alarmsTrusted=true;
+         $('emptyConfirmWrap').hidden=true;
+         $('alarmSyncLabel').textContent='Empty confirmed';
+         log('First-alarm creation authorized for user-confirmed empty watch');
+       }
+     }
+     if(!app.alarmsTrusted||!Array.isArray(app.alarms))throw Error('Could not establish a safe alarm list for writing');
+     let next=app.alarms.map(x=>({...x}));
+     if(app.editorIndex>=0){
+       // Existing edit needs a correctly identified source and a fresh read.
+       if(app.editorIndex>=next.length)throw Error('Alarm list changed. Reopen the editor and retry');
+       next[app.editorIndex]=a;
+     }else next.push(a);
+     $('alarmEditor').close();
+     await writeAlarms(next,'Alarm saved');
+   }catch(e){message('alarmOpStatus',e.message,true);log('Alarm save blocked/failed: '+e.message)}
+ });
+}
+
+function varlen(v){if(v<128)return[v];v-=128;if(v<16384)return[0x80|(v>>8),v&255];v-=16384;if(v<(1<<21))return[0xc0|(v>>16),(v>>8)&255,v&255];v-=1<<21;return[0xe0|(v>>24),(v>>16)&255,(v>>8)&255,v&255]}
+function timerPacket(seconds,type,pct,interval){let d=[1,...varlen(seconds)],i=0x21+Math.floor(Math.max(0,Math.min(100,pct))*19/100),body=[0x13,0xf5,d.length,...d,0xf0,0x04,type,i,interval];return [0x22,...u16(body.length),...body,0x80]}
+async function timerOp(op){await write(app.ch.timer,[0x13,0x03,0x11,0x02,op,0x02])}
+function onTimerConfig(bytes){if(bytes[0]===0x12&&bytes[1]===0x13)log('Watch timer settings reported',true)}
+function duration(){let m=$('duration').value.trim().match(/^(\d{1,4}):([0-5]?\d)$/);if(!m)throw Error('Enter minutes:seconds (for example 0:20)');let sec=Number(m[1])*60+Number(m[2]);if(sec<1||sec>86399)throw Error('Enter a duration between 0:01 and 1439:59');return sec}
+function setTimerSeconds(n){if(['countdown','snoozing','alerting'].includes(app.timer.phase)){message('timerWriteStatus','Stop the current timer or alert before changing the preset.',true);return}$('duration').value=`${Math.floor(n/60)}:${String(n%60).padStart(2,'0')}`;app.timer.baseSeconds=n;app.timer.seconds=n;app.timer.remaining=n;app.timer.deadline=null;app.timer.running=false;app.timer.finished=false;app.timer.seen=false;app.timer.phase='ready';app.timer.sessionActive=false;$('timerBadge').textContent='Ready';$('timerStatus').textContent='Ready to configure';for(let b of document.querySelectorAll('[data-preset]'))b.classList.toggle('selected',Number(b.dataset.preset)===n);renderClock();renderTimerSeq()}
+function renderTimerSeq(){let m=Number($('timerZapMax').value);$('timerZapMaxText').textContent=m+'%';let b=Math.min(15,Math.max(0,Number($('timerBuzzCount').value)||0)),p=Math.min(15,Math.max(0,Number($('timerBeepCount').value)||0)),z=Math.min(10,Math.max(0,Number($('timerZapCount').value)||0)),seq=timerSequence(b,p,z,m);$('timerSequencePreview').textContent=seqText(seq)+' → REPEAT';let n;try{n=duration()}catch{return}$('timerModeNotice').textContent=n<=255?'Keep this page active for repeating alerts. Hold the middle button to stop.':'Long timers require the page to remain open for repeated alerts.'}
+async function immediate(stim,pct){const key=stim.type==='buzz'?'vibe':stim.type;let ch=app.ch[key];if(!ch)throw Error('Direct '+stim.type+' characteristic unavailable');let bytes=stim.type==='zap'?[0x81,pct]:[0x81,1,pct,0x16,0x16];await write(ch,bytes)}
+const MAX_ZAPS_PER_ALERT=12;
+const TIMER_CYCLE_GAP_MS=3000;
+function cancelSequence(reason=''){const wasActive=app.seqRunning;app.seqToken++;app.seqCancel=true;app.seqRunning=false;if(wasActive&&reason){log('Repeating sequence cancelled: '+reason);if(reason.includes('disconnected')||reason.includes('backgrounded')){$('timerBadge').textContent='Web loop stopped';$('timerStatus').textContent='Repeating stimuli stopped: '+reason;app.timer.phase='inactive'}}}
+async function runRepeatingSequence(seq,firstNative){
+ if(!seq.length)return;
+ const token=++app.seqToken,t=app.timer;
+ app.seqRunning=true;app.seqCancel=false;t.phase='alerting';t.running=false;t.finished=true;t.remaining=0;t.deadline=null;t.cycle=1;
+ t.zapsSent=firstNative&&seq[0].type==='zap'?1:0;
+ $('timerBadge').textContent='ALERTING';$('timerStatus').textContent='Repeating · cycle 1 · middle: snooze / hold: stop';
+ log('Repeating timer stimulus sequence started');refreshConnection();
+ let first=true;
+ try{
+  while(token===app.seqToken&&!app.seqCancel){
+   const firstCycle=first;
+   const startIndex=firstCycle&&firstNative?1:0;first=false;
+   let emitted=0;
+   for(let i=startIndex;i<seq.length;i++){
+    if(token!==app.seqToken||app.seqCancel)return;
+    if(!isOn()||document.hidden){log('Repeating stimuli halted: browser inactive or disconnected');return}
+    const item=seq[i];
+    // Do not issue unlimited zaps in a runaway browser loop. The UI makes
+    // this safety limit explicit, and buzz/beep rounds continue afterwards.
+    if(item.type==='zap'&&t.zapsSent>=MAX_ZAPS_PER_ALERT)continue;
+    // Exactly 3s from the preceding cycle's last pulse to the new cycle's first pulse.
+    // Normal intra-cycle pulse spacing follows the Connection tab (default 1s).
+    await sleep(i===0&&!firstCycle?TIMER_CYCLE_GAP_MS:Math.max(400,pref.gap*1000));
+    if(token!==app.seqToken||app.seqCancel||!isOn()||document.hidden)return;
+    const pct=item.pct;
+    await immediate(item,pct);
+    emitted++;
+    if(item.type==='zap')t.zapsSent++;
+    log(`Alert cycle ${t.cycle}: ${item.type} ${pct}% requested`);
+   }
+   if(token!==app.seqToken||app.seqCancel)return;
+   const stillSafe=seq.some(x=>x.type!=='zap')||t.zapsSent<MAX_ZAPS_PER_ALERT;
+   if(!stillSafe){log(`Zap-only alert stopped at ${MAX_ZAPS_PER_ALERT}-zap safety limit`);$('timerStatus').textContent='Safety stop · zap limit reached';$('timerBadge').textContent='Limit reached';t.phase='stopped';t.finished=false;return}
+   // No extra pause here: the first pulse of each subsequent cycle waits 3s.
+   // Do not add a second delay after a native-only first cycle.
+   t.cycle++;
+   $('timerStatus').textContent=`Repeating · cycle ${t.cycle} · middle: snooze / hold: stop`;
+  }
+ }catch(e){log('Repeating sequence interrupted: '+e.message);message('timerWriteStatus','Custom stimulus loop stopped: '+e.message,true)}
+ finally{if(token===app.seqToken){app.seqRunning=false;app.seqCancel=false;refreshConnection()}}
+}
+function handleTimerCompletion(){
+ const t=app.timer;if(!t.seq.length)return;
+ // For <=255 seconds, one stim was already issued by the watch at expiry.
+ // All further pulses and subsequent cycles are managed by the live page.
+ const nativeFirst=t.seconds<=255;
+ if(!isOn()||document.hidden){t.phase='inactive';$('timerBadge').textContent='No web sequence';$('timerStatus').textContent='Watch timer completed; browser not available for repeat cycles';log('Browser unavailable for repeating timer sequence');return}
+ void runRepeatingSequence(t.seq,nativeFirst);
+}
+async function startTimer(snooze=false){cancelSequence(snooze?'Snoozed':'New timer started');if(!isOn()||!app.ch.timer)throw Error('Watch timer controls unavailable');let secs=snooze?pref.snooze*60:duration(),seq=snooze?app.timer.seq:timerSequence(count('timerBuzzCount',15),count('timerBeepCount',15),count('timerZapCount',10),Number($('timerZapMax').value));if(!seq.length)throw Error('Choose at least one stimulus');
+ let native=secs<=255?seq[0]:{type:'buzz',pct:100};let code={buzz:1,beep:2,zap:3}[native.type];let interval=secs<=255?secs:0; // longer durations cannot encode true finish interval in one byte
+ await write(app.ch.timer,timerPacket(secs,code,native.pct,interval));await sleep(175);await timerOp(0x11);let t=app.timer;if(!snooze)t.baseSeconds=secs;t.maxZap=Number($('timerZapMax').value);t.seconds=secs;t.remaining=secs;t.deadline=Date.now()+secs*1000;t.running=true;t.paused=false;t.seen=false;t.finished=false;t.notified=false;t.seq=seq;t.elapsed=0;t.phase=snooze?'snoozing':'countdown';t.sessionActive=true;t.ignoreStopsUntil=Date.now()+1600;t.cycle=0;t.zapsSent=0;
+ if($('timerConfirmBuzz').checked&&!snooze){try{await immediate({type:'buzz'},30);log('Timer start confirmation buzz requested')}catch(e){log('Start confirmation buzz unavailable: '+e.message)}}
+ $('timerBadge').textContent=snooze?'Snoozing':'Running';$('timerStatus').textContent=`${snooze?'Snoozing':'Started'} · ${fmt(secs)} · ${secs<=255?'watch-native first pulse':'browser-dependent finish'}`;message('timerWriteStatus',`Timer ${snooze?'snoozed':'started'}. Once complete, the sequence repeats until short middle press (snooze) or long press (stop), while Bluetooth and this tab remain active.`);log(`Timer start ${fmt(secs)}, interval ${interval}s`);refreshConnection();renderClock()}
+async function timerCommand(action){
+ if(['snooze','reset','pause'].includes(action)){
+  cancelSequence(action);
+  if(action==='snooze'){
+   $('timerBadge').textContent='Snoozing';$('timerStatus').textContent='Snooze requested · waiting for watch';
+   app.timer.phase='snoozing';
+  }else if(action==='reset'){
+   $('timerBadge').textContent='Stopped';$('timerStatus').textContent='Stop requested';app.timer.phase='stopped';
+  }
+ }
+ await safeOp(async()=>{
+  try{
+   if(action==='start')await startTimer();
+   if(action==='snooze'){await startTimer(true);log(`Timer snoozed for ${pref.snooze} minutes`)}
+   if(action==='pause'){
+    await timerOp(0x13);let t=app.timer;t.remaining=t.deadline?Math.max(0,Math.ceil((t.deadline-Date.now())/1000)):t.remaining;t.deadline=null;t.running=false;t.paused=true;t.phase='paused';$('timerStatus').textContent='Paused';$('timerBadge').textContent='Paused'
+   }
+   if(action==='resume'){
+    await timerOp(0x14);let t=app.timer;t.deadline=Date.now()+t.remaining*1000;t.running=true;t.paused=false;t.phase='countdown';$('timerStatus').textContent='Resume requested';$('timerBadge').textContent='Running'
+   }
+   if(action==='reset'){
+    await timerOp(0x12);let t=app.timer;t.running=false;t.deadline=null;t.seconds=t.baseSeconds;t.remaining=t.baseSeconds;t.finished=false;t.notified=false;t.seen=false;t.paused=false;t.phase='ready';t.sessionActive=false;t.cycle=0;t.zapsSent=0;$('timerStatus').textContent='Stopped · reset to '+fmt(t.baseSeconds)+' · ready to start';$('timerBadge').textContent='Ready';log('Timer stopped and restored to '+fmt(t.baseSeconds))
+   }
+   renderClock();refreshConnection();
+  }catch(e){message('timerWriteStatus',e.message,true);log('Timer command error: '+e.message)}
+ });
+}
+async function alarmButton(which){await safeOp(async()=>{try{if(!app.activeAlarm)throw Error('No active alarm observed');await write(app.ch.ctrl,which==='snooze'?[0x03,0x01]:[0x02,0x00]);log('Sent native alarm '+which+' command; awaiting watch confirmation')}catch(e){message('connectStatus',e.message,true)}})}
+$('alarmConnectBtn').onclick=connect;$('connectBtn').onclick=connect;$('disconnectBtn').onclick=disconnect;$('readAlarmsBtn').onclick=()=>safeOp(async()=>{try{await readAlarms()}catch(e){log('Read failed: '+e.message)}});$('newAlarmBtn').onclick=()=>showEditor();$('confirmEmptyBtn').onclick=()=>{if(!isOn())return;if(!confirm('Only continue if you verified the watch has ZERO alarms. If a read failed for another reason, saving may overwrite alarms. Continue?'))return;app.alarms=[];app.alarmsTrusted=true;$('emptyConfirmWrap').hidden=true;$('alarmSyncLabel').textContent='Empty confirmed by you';message('alarmOpStatus','Assuming zero alarms based on your confirmation. Creating a new alarm will write the entire watch alarm list.');renderAlarms();refreshConnection()};
+$('closeEditorBtn').onclick=()=>$('alarmEditor').close();$('cancelEditorBtn').onclick=()=>$('alarmEditor').close();$('saveEditorBtn').onclick=saveEditor;document.querySelectorAll('[data-day]').forEach(b=>b.onclick=()=>setDays(app.editorMask^Number(b.dataset.day)));document.querySelectorAll('[data-days]').forEach(b=>b.onclick=()=>setDays(Number(b.dataset.days)));for(let id of ['editBuzzCount','editBeepCount','editZapCount','editZapMax'])$(id).addEventListener('input',renderEditSeq);$('editEscalate').addEventListener('change',renderEditSeq);
+for(let id of ['timerBuzzCount','timerBeepCount','timerZapCount','timerZapMax','duration'])$(id).addEventListener('input',renderTimerSeq);document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>setTimerSeconds(Number(b.dataset.preset)));$('duration').addEventListener('change',()=>{try{setTimerSeconds(duration())}catch(e){message('timerWriteStatus',e.message,true)}});
+$('timerStartBtn').onclick=()=>timerCommand('start');$('timerSnoozeBtn').onclick=()=>timerCommand('snooze');$('timerPauseBtn').onclick=()=>timerCommand('pause');$('timerResumeBtn').onclick=()=>timerCommand('resume');$('timerStopBtn').onclick=()=>{if(app.pendingShortPress!==null){clearTimeout(app.pendingShortPress);app.pendingShortPress=null}app.pendingMiddleAction=null;timerCommand('reset')};$('snoozeAlarmBtn').onclick=()=>alarmButton('snooze');$('stopAlarmBtn').onclick=()=>alarmButton('stop');$('clearLogBtn').onclick=()=>{app.log=[];app.events=0;$('eventCount').textContent='0';$('log').innerHTML='<li><time>—</time><span>No events</span></li>'};
+$('timerConfirmBuzz').checked=pref.confirm;$('timerConfirmBuzz').addEventListener('change',()=>{pref.confirm=$('timerConfirmBuzz').checked;storeLocal('pc-v1-pref',pref)});
+let installPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;$('installBtn').hidden=false});
+$('installBtn').addEventListener('click',async()=>{if(!installPrompt)return;const p=installPrompt;installPrompt=null;$('installBtn').hidden=true;try{await p.prompt()}catch(e){log('Install prompt unavailable: '+e.message)}});
+window.addEventListener('appinstalled',()=>{$('installBtn').hidden=true;log('Pavlok Control installed on home screen')});
+if('serviceWorker' in navigator && (location.protocol==='https:' || location.hostname==='localhost')){
+ window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(e=>log('Offline setup unavailable: '+e.message)));
+}
+refreshConnection();setTimerSeconds(20);alarmState('STATUS UNKNOWN','Waiting for watch events.','unknown');setInterval(renderClock,250);restore();
+</script></body></html>
