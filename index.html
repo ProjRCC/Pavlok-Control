@@ -1,6 +1,6 @@
 <!doctype html>
 <!--
-V1.9 HTTPS/PWA package; alarm content and timer protocol retained from hardware-tested V1.8.
+V1.9.2 HTTPS/PWA package; alarm content and timer protocol retained from hardware-tested V1.8.
 Pavlok Control: unofficial interoperability prototype. Portions of the
 reverse-engineered BLE protocol and its encoding implementation derive from:
   LibreShock (https://github.com/hairyfred/LibreShock)
@@ -30,8 +30,8 @@ SOFTWARE.
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="./manifest.webmanifest">
-<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
-<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
 <style>
 :root{color-scheme:dark;--bg:#0b111b;--card:#172334;--ink:#eef5ff;--dim:#a5b6ca;--line:#33465c;--accent:#78a9ff;--good:#40d5a1;--warn:#f4c16e;--bad:#ff8e96;font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}*{box-sizing:border-box}
 body{margin:0;background:radial-gradient(ellipse at 15% -10%,#263e5b80,transparent 52%),var(--bg);color:var(--ink);line-height:1.42}main{max-width:820px;padding:18px 16px 85px;margin:auto}h1,h2,h3,p{margin:0}h1{font-size:29px;letter-spacing:-.045em}h2{font-size:18px;letter-spacing:-.025em}h3{font-size:14px}button,input,select{font:inherit}button{background:#2a3d58;border:1px solid #4d6584;color:#f4f8ff;border-radius:12px;padding:11px 14px;cursor:pointer;font-weight:700;touch-action:manipulation}button:disabled{opacity:.4;cursor:not-allowed}button.primary{background:#7daaff;color:#111b2b;border-color:#7daaff}button.ghost{background:transparent;border-color:#455a73}button.danger{color:#ffcad0;border-color:#80525e;background:#34232e}button.small{font-size:12px;padding:8px 11px}button.selected{background:#3d6598;border-color:#8fbeff}button.full{width:100%}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #9dd0ff;outline-offset:2px}
@@ -42,7 +42,7 @@ header{display:flex;justify-content:space-between;gap:14px;align-items:center;ma
 @media(max-width:520px){main{padding:13px 11px 80px}header{margin-top:5px}h1{font-size:25px}.card{padding:15px;margin-top:12px}.statgrid{grid-template-columns:repeat(2,1fr)}.statgrid .stat:last-child{grid-column:span 2}.grid2{gap:8px}.grid3{grid-template-columns:repeat(3,minmax(0,1fr))}.stat b{font-size:12px}.presetgrid{grid-template-columns:repeat(5,1fr)}.presetgrid button{font-size:11px}.dialoginner{padding:15px}.editorfoot{padding:12px}.big{font-size:49px}}
 </style></head>
 <body><main>
-<header><div><div class="eyebrow">SHOCK CLOCK 3 · WEB BLUETOOTH</div><h1>Pavlok Control</h1><p class="intro">Connection · Alarms · Timer</p></div><div class="version">V1.9 · WEB APP</div></header>
+<header><div><div class="eyebrow">SHOCK CLOCK 3 · WEB BLUETOOTH</div><h1>Pavlok Control</h1><p class="intro">Connection · Alarms · Timer</p></div><div class="version">V1.9.2 · WEB APP</div></header>
 <nav class="tabs" role="tablist" aria-label="App sections"><button data-tab="connection">Connection</button><button class="active" data-tab="alarms">Alarms</button><button data-tab="timer">Timer</button></nav>
 <section class="page" id="connection">
  <div class="card"><div class="row wrap"><h2>Watch connection</h2><span id="connBadge" class="pill"><span class="dot"></span><span id="connText">Disconnected</span></span></div>
@@ -232,20 +232,47 @@ async function establish(){if(app.connecting||!app.device||isOn()||!app.want)ret
  }catch(e){app.server=null;app.ch={};message('connectStatus','Connection error: '+e.message,true);log('Connect error: '+e.message);if(app.want)retry()}finally{app.connecting=false;refreshConnection()}}
 function retry(){if(app.retry)clearTimeout(app.retry);if(!app.want||!app.device||document.hidden||isOn())return;let delay=Math.min(30000,1500*2**Math.min(4,app.attempts++));message('connectStatus',`Link lost; reconnecting in ${Math.round(delay/1000)}s while page is active.`);app.retry=setTimeout(()=>{app.retry=null;establish()},delay)}
 function disconnect(){cancelSequence('Disconnected manually');app.manual=true;app.want=false;if(app.retry)clearTimeout(app.retry);if(app.device?.gatt.connected)app.device.gatt.disconnect();app.server=null;app.ch={};app.alarmsTrusted=false;refreshConnection();message('connectStatus','Disconnected. Stored watch alarms are unchanged.');log('Disconnected manually')}
+// Reconnect only to Bluetooth devices previously authorized for this exact HTTPS origin.
+// Chrome will not allow a new device chooser without a user gesture.
+let restoreBusy=false;
 async function restore(){
- if(app.connecting||isOn()||!navigator.bluetooth?.getDevices)return;
+ if(restoreBusy||app.connecting||isOn()||app.manual||app.want||document.hidden)return;
+ if(!navigator.bluetooth){message('connectStatus','Web Bluetooth is unavailable in this browser. Use Chrome on Android.',true);return}
+ if(typeof navigator.bluetooth.getDevices!=='function'){
+  message('connectStatus','This Chrome build cannot list previously authorized Bluetooth watches. Tap Connect to watch.',true);
+  log('Auto reconnect unavailable: navigator.bluetooth.getDevices is missing');return;
+ }
+ restoreBusy=true;
  try{
-  const allowed=(await navigator.bluetooth.getDevices()).filter(d=>d.name?.startsWith('Pavlok-3-'));
+  const granted=await navigator.bluetooth.getDevices();
+  // Don't override a manual connection started while permissions were being checked.
+  if(app.connecting||isOn()||app.manual||app.want)return;
+  const allowed=granted.filter(d=>d.name?.startsWith('Pavlok-3-'));
+  log('Automatic reconnection: Chrome returned '+allowed.length+' authorized Pavlok watch(es)');
   const last=readLocal('pc-v19-last-device-id',null);
   const old=allowed.find(d=>d.id===last)||allowed[0];
   if(old){chooseDevice(old);app.want=true;app.manual=false;
-   message('connectStatus','Reconnecting to authorized watch…');await establish();
+   message('connectStatus','Previously authorized watch found. Connecting…');await establish();
   }else{
-   message('connectStatus','Tap Connect to watch once on this HTTPS site. Later launches can reconnect automatically.');
+   message('connectStatus',last
+    ?'Chrome has no saved Bluetooth permission for this watch. Tap Connect to watch to authorize it again. Automatic reconnection cannot bypass Chrome permission.'
+    :'Tap Connect to watch once to grant Bluetooth permission. The next opening will attempt automatic reconnection.');
   }
- }catch(e){log('Previously authorized watch unavailable: '+e.message);message('connectStatus','Automatic connection unavailable. Tap Connect to watch.',true)}
+ }catch(e){log('Automatic reconnection permission check failed: '+e.message);
+  message('connectStatus','Chrome Bluetooth permission check failed: '+e.message+' · Tap Connect to watch.',true)
+ }finally{restoreBusy=false}
 }
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&app.seqRunning)cancelSequence('Browser backgrounded; custom sequence stopped');if(!document.hidden&&app.want&&!isOn()&&!app.connecting)retry();else if(!document.hidden&&!app.want&&!app.manual&&!isOn())void restore();health()});
+function resumeWatchConnection(){
+ if(document.hidden)return;
+ if(app.want&&!app.manual&&!isOn()&&!app.connecting)retry();
+ else if(!app.want&&!app.manual&&!isOn())void restore();
+}
+document.addEventListener('visibilitychange',()=>{
+ if(document.hidden&&app.seqRunning)cancelSequence('Browser backgrounded; custom sequence stopped');
+ else resumeWatchConnection();health();
+});
+window.addEventListener('pageshow',resumeWatchConnection);
+window.addEventListener('focus',resumeWatchConnection);
 async function write(ch,arr){if(!isOn()||!ch)throw Error('Watch not connected or required characteristic unavailable');let bytes=Uint8Array.from(arr);if(ch.writeValueWithResponse)await ch.writeValueWithResponse(bytes);else if(ch.writeValue)await ch.writeValue(bytes);else throw Error('Browser does not support Bluetooth write')}
 async function safeOp(fn){if(app.busy)return;app.busy=true;refreshConnection();try{await fn()}catch(e){log('Command failed: '+e.message);message('connectStatus','Command failed: '+e.message,true)}finally{app.busy=false;refreshConnection()}}
 function onAlarmControlData(data){let p=app.alarmPending;if(!p)return;p.chunks.push(...data);let b=p.chunks; if(b.length>=6&&b[0]===65&&b[1]===72){let total=4+(b[2]|b[3]<<8);if(b.length>=total){clearTimeout(p.timeout);app.alarmPending=null;p.resolve(Uint8Array.from(b.slice(0,total)))}}}
